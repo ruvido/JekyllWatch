@@ -64,13 +64,32 @@ class Draft
       end
     end
   end
+  # --------------------------------
   def preview
     preview_status = false
     if preview_field == true
       preview_status = true
     end
+    # puts prev_dir
     return preview_status
   end
+  # --------------------------------
+  def cp_to_previews
+    target_dir = $prev_dir + File.basename(filename)
+    FileUtils.cp( filename, target_dir )
+    return target_dir
+  end
+  # --------------------------------
+  def cp_to_posts
+    target_dir = $post_dir + jkname
+    FileUtils.cp( filename, target_dir )
+    
+    old_preview = $prev_dir + File.basename(filename)
+    FileUtils.rm(old_preview)
+
+    return target_dir
+  end
+  # --------------------------------
   def publish
     publish_status = false
     if @date == ''
@@ -97,8 +116,8 @@ end
 # READ CONFIG FILE
 # -----------------------------------
 
-dump_dir = ''
-blog_dir = ''
+$dump_dir = ''
+$blog_dir = ''
 
 configfile = ARGV.first
 config = File.read(configfile)
@@ -107,16 +126,17 @@ config.split("\n").each do |line|
   # puts k, v
   if k =~ /Dump/
     # .strip removes any extra space from the dir path
-    dump_dir = v.strip
+    $dump_dir = v.strip
   end
   if k =~ /Blog/
     # .strip removes any extra space from the dir path
-    blog_dir = v.strip
+    $blog_dir = v.strip
   end
 end
 
-post_dir = blog_dir + "/_posts"
-prev_dir = blog_dir + "/previews"
+# GLOBAL VARIABLES -----------------
+$post_dir = $blog_dir + "/_posts/"
+$prev_dir = $blog_dir + "/previews/"
 
 
 # --------------------
@@ -130,25 +150,36 @@ prev_dir = blog_dir + "/previews"
 # COLLECT ALL DRAFTS
 # -----------------------------------
 draftlist=[]
-Dir.glob(dump_dir+"/*.md").each do |draftname|
+Dir.glob($dump_dir+"/*.md").each do |draftname|
   draftlist.push(Draft.new(draftname))
 end
 
 draftlist.each do |ii|
   puts '--------------------------------'
   puts ii.filename
+  # puts File.basename(ii.filename, ".md")
+  puts File.basename(ii.filename)
   puts ii.title
   puts "### ready to preview: "
   puts ii.preview
   puts "### ready to publish: "
   puts ii.publish
+  puts ii.jkname
 
-  if ii.preview
-    # copy file in blog preview folder
-    # move file in dump preview folder
-    FileUtils.mv('/tmp/your_file', '/opt/new/location/your_file')
-    # check for image?
+  if ii.preview 
+    puts ii.cp_to_previews
+  end
+
+  if ii.publish
+    puts ii.cp_to_posts
   end
 
 end
 puts '--------------------------------'
+
+# ===================
+# TODO
+# ===================
+
+# 1. check if image EXIST
+# 2. mv files in the dump directory according to "preview" or "published"
