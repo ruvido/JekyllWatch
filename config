@@ -1,2 +1,5 @@
-Blog: /Users/ruvido/Dropbox/Development/JekyllWatch/myblog
-Dump: /Users/ruvido/Dropbox/Development/JekyllWatch/mydump
+blog: /Users/ruvido/Dropbox/Development/JekyllWatch/myblog
+------------------------------------------------------------
+dump: /Users/ruvido/Dropbox/Development/JekyllWatch/mydump
+previews: previews
+published: posts

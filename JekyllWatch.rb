@@ -6,21 +6,22 @@ require 'fileutils'
 # CLASS DEFINITION
 # -----------------------------------
 class Draft
-  attr_accessor :filename, :title, :author, :date, :slug, :header, 
+  attr_accessor :filename, :basename, :title, :author, :date, :slug, :header, 
                 :jkname, :preview, :preview_field, :publish, :publish_field
   def initialize(filename)
     @filename = filename
+    @basename = File.basename(filename)
     @header   = false
     @title    = ''
     @author   = ''
     @date     = ''
     @slug     = ''
-    # @ok       = false
     @preview  = false
     @publish  = false
     @preview_field  = ''
     @publish_field  = ''
     @jkname   = 'Untitled.md'
+    @status_v = 'draft'
 
     # ---- Ingest entire file  ----------
     text = File.read(filename)
@@ -65,51 +66,60 @@ class Draft
     end
   end
   # --------------------------------
-  def preview
-    preview_status = false
-    if preview_field == true
-      preview_status = true
+  def status
+    if @publish_field==true and @date!="" and @slug!="" and @title!=""
+      status_v = 'publish'
+      @jkname = date + "-" + slug + ".md"
+    elsif preview_field == true
+      status_v = 'preview'
+    else
+      status_v = 'draft'
     end
-    # puts prev_dir
-    return preview_status
+    return status_v
   end
-  # --------------------------------
-  def cp_to_previews
-    target_dir = $prev_dir + File.basename(filename)
-    FileUtils.cp( filename, target_dir )
-    return target_dir
-  end
-  # --------------------------------
-  def cp_to_posts
-    target_dir = $post_dir + jkname
-    FileUtils.cp( filename, target_dir )
-    
-    old_preview = $prev_dir + File.basename(filename)
-    FileUtils.rm(old_preview)
-
-    return target_dir
-  end
-  # --------------------------------
-  def publish
-    publish_status = false
+  def missing
     if @date == ''
       puts "ERR: date is missing"
     end
     if @slug == ''
-      puts "ERR: slug is missing"
-    end      
+      puts "ERR: slug is missing"   
+    end
     if @title == ''
-      puts "ERR: title is missing"
-    end      
+      puts "ERR: title is missing"      
+    end
     if @publish_field == ''
       puts "ERR: publish field is missing"
-    end      
-    if @publish_field==true and @date!="" and @slug!="" and @title!=""
-      publish_status = true
-      @jkname = date + "-" + slug + ".md"
     end
-    return publish_status
+    # else
+    #   puts "OK: article ready"
+    # end  
   end
+  # --------------------------------
+  def to_previews
+    prev_dir = $blog_dir + "/previews/"
+
+    new_filename = prev_dir + File.basename(filename)
+    FileUtils.cp( filename, new_filename )
+
+    return new_filename
+  end
+  # --------------------------------
+  def to_posts
+    post_dir = $blog_dir + "/_posts/"
+    prev_dir = $blog_dir + "/previews/"
+
+    new_filename = post_dir + jkname
+    FileUtils.cp( filename, new_filename )
+    puts "file copied to posts"
+    
+    old_preview = prev_dir + File.basename(filename)
+    if File.file?(old_preview)
+      FileUtils.rm( old_preview )
+      puts "preview is deleted"
+    end
+
+    return new_filename
+  end 
 end
 
 # -----------------------------------
@@ -124,19 +134,25 @@ config = File.read(configfile)
 config.split("\n").each do |line|
   k,v=line.split(":")
   # puts k, v
-  if k =~ /Dump/
+  if k =~ /dump/
     # .strip removes any extra space from the dir path
     $dump_dir = v.strip
   end
-  if k =~ /Blog/
+  if k =~ /blog/
     # .strip removes any extra space from the dir path
     $blog_dir = v.strip
+  end
+  if k=~ /previews/
+    dump_previews = v.strip
+  end
+  if k=~ /published/
+    dump_posts = v.strip
   end
 end
 
 # GLOBAL VARIABLES -----------------
-$post_dir = $blog_dir + "/_posts/"
-$prev_dir = $blog_dir + "/previews/"
+# $post_dir = $blog_dir + "/_posts/"
+# $prev_dir = $blog_dir + "/previews/"
 
 
 # --------------------
@@ -156,23 +172,21 @@ end
 
 draftlist.each do |ii|
   puts '--------------------------------'
-  puts ii.filename
-  # puts File.basename(ii.filename, ".md")
-  puts File.basename(ii.filename)
-  puts ii.title
-  puts "### ready to preview: "
-  puts ii.preview
-  puts "### ready to publish: "
-  puts ii.publish
-  puts ii.jkname
 
-  if ii.preview 
-    puts ii.cp_to_previews
-  end
+  status = ii.status
+  puts ii.basename, status
 
-  if ii.publish
-    puts ii.cp_to_posts
-  end
+  case status
+  when "publish"
+    ii.to_posts
+    puts "file published!"
+  when "preview"
+    ii.to_previews
+    puts "file sent to previews, want the address?"
+    ii.missing
+  when "draft"
+    puts "keep working on that!"
+  end    
 
 end
 puts '--------------------------------'
@@ -182,4 +196,5 @@ puts '--------------------------------'
 # ===================
 
 # 1. check if image EXIST
-# 2. mv files in the dump directory according to "preview" or "published"
+# 2. mv files in the dump directory according to "_preview" or "_published"
+# 3. from preview or published back to drafts if needed
