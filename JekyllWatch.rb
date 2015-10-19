@@ -8,7 +8,7 @@ require 'fileutils'
 class Draft
   attr_accessor :filename, :basename, :title, :author, :date, :slug, :header, 
                 :jkname, :preview, :preview_field, :publish, :publish_field
-  def initialize(filename)
+  def initialize(filename,config)
     @filename = filename
     @basename = File.basename(filename)
     @header   = false
@@ -121,34 +121,81 @@ class Draft
     return new_filename
   end 
 end
+# ======================================
+# CONFIG CLASS
+# ======================================
+class Config
+  attr_accessor :dump, :dump_drafts, :dump_previews, :dump_posts,
+                :blog, :blog_previews, :blog_posts, :blog_images
+
+  def initialize(configfile)
+    @filename         = configfile
+    @dump             = ''
+    @dump_drafts      = ''
+    @dump_previews    = ''
+    @dump_posts       = ''
+    @blog             = ''
+    @blog_previews    = ''
+    @blog_posts       = ''
+    @blog_images      = ''
+    @blog             = ''
+
+  config = File.read(@filename)
+  config.split("\n").each do |line|
+  k,v=line.split(":")
+  # puts k, v
+  if k =~ /dump/
+    # .strip removes any extra space from the dir path
+    @dump         = v.strip
+    @dump_drafts  = "#{@dump}/drafts"
+    @dump_previews= "#{@dump}/previews"
+    @dump_posts   = "#{@dump}/posts"
+  end
+  if k =~ /blog/
+    # .strip removes any extra space from the dir path
+    @blog = v.strip
+    @blog_previews= "#{@blog}/previews"
+    @blog_posts   = "#{@blog}/_posts"
+    @blog_images  = "#{@blog}/images/posts" 
+  end
+end
 
 # -----------------------------------
 # READ CONFIG FILE
 # -----------------------------------
 
-$dump_dir = ''
-$blog_dir = ''
+# $dump_dir = ''
+# $blog_dir = ''
 
-configfile = ARGV.first
-config = File.read(configfile)
-config.split("\n").each do |line|
-  k,v=line.split(":")
-  # puts k, v
-  if k =~ /dump/
-    # .strip removes any extra space from the dir path
-    $dump_dir = v.strip
-  end
-  if k =~ /blog/
-    # .strip removes any extra space from the dir path
-    $blog_dir = v.strip
-  end
-  if k=~ /previews/
-    dump_previews = v.strip
-  end
-  if k=~ /published/
-    dump_posts = v.strip
-  end
-end
+# configfile = ARGV.first
+conf=Config.new (ARGV.first)
+
+puts conf.blog, conf.blog_previews, conf.blog_posts, conf.blog_images
+puts '-------'
+puts conf.dump, conf.dump_drafts, conf.dump_previews, conf.dump_posts 
+
+exit
+
+
+# config = File.read(configfile)
+# config.split("\n").each do |line|
+#   k,v=line.split(":")
+#   # puts k, v
+#   if k =~ /dump/
+#     # .strip removes any extra space from the dir path
+#     $dump_dir = v.strip
+#   end
+#   if k =~ /blog/
+#     # .strip removes any extra space from the dir path
+#     $blog_dir = v.strip
+#   end
+#   if k=~ /previews/
+#     dump_previews = v.strip
+#   end
+#   if k=~ /published/
+#     dump_posts = v.strip
+#   end
+# end
 
 # GLOBAL VARIABLES -----------------
 # $post_dir = $blog_dir + "/_posts/"
@@ -198,3 +245,4 @@ puts '--------------------------------'
 # 1. check if image EXIST
 # 2. mv files in the dump directory according to "_preview" or "_published"
 # 3. from preview or published back to drafts if needed
+# 4. if a directory starts with "_" in the dump directory IGNORE it
