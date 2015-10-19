@@ -7,8 +7,9 @@ require 'fileutils'
 # -----------------------------------
 class Draft
   attr_accessor :filename, :basename, :title, :author, :date, :slug, :header, 
-                :jkname, :preview, :preview_field, :publish, :publish_field
-  def initialize(filename,config)
+                :jkname, :preview, :preview_field, :publish, :publish_field,
+                :config
+  def initialize(filename,configdata)
     @filename = filename
     @basename = File.basename(filename)
     @header   = false
@@ -22,6 +23,7 @@ class Draft
     @publish_field  = ''
     @jkname   = 'Untitled.md'
     @status_v = 'draft'
+    @config   = configdata
 
     # ---- Ingest entire file  ----------
     text = File.read(filename)
@@ -96,23 +98,22 @@ class Draft
   end
   # --------------------------------
   def to_previews
-    prev_dir = $blog_dir + "/previews/"
 
-    new_filename = prev_dir + File.basename(filename)
+    new_filename = config.blog_previews + File.basename(filename)
     FileUtils.cp( filename, new_filename )
 
     return new_filename
   end
   # --------------------------------
   def to_posts
-    post_dir = $blog_dir + "/_posts/"
-    prev_dir = $blog_dir + "/previews/"
+    # post_dir = $blog_dir + "/_posts/"
+    # prev_dir = $blog_dir + "/previews/"
 
-    new_filename = post_dir + jkname
+    new_filename = config.blog_posts + jkname
     FileUtils.cp( filename, new_filename )
     puts "file copied to posts"
     
-    old_preview = prev_dir + File.basename(filename)
+    old_preview = config.blog_previews + File.basename(filename)
     if File.file?(old_preview)
       FileUtils.rm( old_preview )
       puts "preview is deleted"
@@ -124,7 +125,7 @@ end
 # ======================================
 # CONFIG CLASS
 # ======================================
-class Config
+class Dataconfig
   attr_accessor :dump, :dump_drafts, :dump_previews, :dump_posts,
                 :blog, :blog_previews, :blog_posts, :blog_images
 
@@ -140,25 +141,43 @@ class Config
     @blog_images      = ''
     @blog             = ''
 
-  config = File.read(@filename)
-  config.split("\n").each do |line|
-  k,v=line.split(":")
-  # puts k, v
-  if k =~ /dump/
-    # .strip removes any extra space from the dir path
-    @dump         = v.strip
-    @dump_drafts  = "#{@dump}/drafts"
-    @dump_previews= "#{@dump}/previews"
-    @dump_posts   = "#{@dump}/posts"
-  end
-  if k =~ /blog/
-    # .strip removes any extra space from the dir path
-    @blog = v.strip
-    @blog_previews= "#{@blog}/previews"
-    @blog_posts   = "#{@blog}/_posts"
-    @blog_images  = "#{@blog}/images/posts" 
+    config = File.read(@filename)
+    config.split("\n").each do |line|
+      k,v=line.split(":")
+      # puts k, v
+      if k =~ /dump/
+        # .strip removes any extra space from the dir path
+        @dump         = "#{v.strip}/"
+        @dump_drafts  = "#{@dump}/drafts/"
+        @dump_previews= "#{@dump}/previews/"
+        @dump_posts   = "#{@dump}/published/"
+        FileUtils::mkdir_p @dump unless Dir.exist?(@dump)
+        FileUtils::mkdir_p @dump_drafts unless Dir.exist?(@dump_drafts) 
+        FileUtils::mkdir_p @dump_previews unless Dir.exist?(@dump_previews) 
+        FileUtils::mkdir_p @dump_posts unless Dir.exist?(@dump_posts) 
+      end
+      if k =~ /blog/
+        # .strip removes any extra space from the dir path
+        @blog         = "#{v.strip}/"
+        @blog_previews= "#{@blog}/previews/"
+        @blog_posts   = "#{@blog}/_posts/"
+        @blog_images  = "#{@blog}/images/posts/"
+        FileUtils::mkdir_p @blog unless Dir.exist?(@blog)
+        FileUtils::mkdir_p @blog_previews unless Dir.exist?(@blog_previews)
+        FileUtils::mkdir_p @blog_posts unless Dir.exist?(@blog_posts)
+        FileUtils::mkdir_p @blog_images unless Dir.exist?(@blog_images)
+      end
+    end
   end
 end
+
+class Item
+  def initialize(item_name, quantity)
+    @item_name = item_name
+    @quantity = quantity
+  end
+end
+
 
 # -----------------------------------
 # READ CONFIG FILE
@@ -168,13 +187,15 @@ end
 # $blog_dir = ''
 
 # configfile = ARGV.first
-conf=Config.new (ARGV.first)
+conf=Dataconfig.new (ARGV.first)
 
-puts conf.blog, conf.blog_previews, conf.blog_posts, conf.blog_images
-puts '-------'
-puts conf.dump, conf.dump_drafts, conf.dump_previews, conf.dump_posts 
+# exit
 
-exit
+# puts conf.blog, conf.blog_previews, conf.blog_posts, conf.blog_images
+# puts '-------'
+# puts conf.dump, conf.dump_drafts, conf.dump_previews, conf.dump_posts 
+
+# exit
 
 
 # config = File.read(configfile)
@@ -212,25 +233,29 @@ exit
 # -----------------------------------
 # COLLECT ALL DRAFTS
 # -----------------------------------
-draftlist=[]
-Dir.glob($dump_dir+"/*.md").each do |draftname|
-  draftlist.push(Draft.new(draftname))
-end
+# Dir.glob( conf.dump + "*.md").each do |draftname|
+# drafts = Dir[File.join(conf.dump, '**', '*.{md}')]
 
-draftlist.each do |ii|
+# Find all md files in subdirectories excluding the ones in 
+# directories starting with a "_" character. Those are protected.
+# This can be used to store template md files.
+
+Dir["#{conf.dump}{[!_]**/*,*}.md"].each do |ii|
+
   puts '--------------------------------'
 
-  status = ii.status
-  puts ii.basename, status
+  draft=Draft.new(ii,conf)
+  status = draft.status
+  puts draft.basename, status
 
   case status
   when "publish"
-    ii.to_posts
+    draft.to_posts
     puts "file published!"
   when "preview"
-    ii.to_previews
+    draft.to_previews
     puts "file sent to previews, want the address?"
-    ii.missing
+    draft.missing
   when "draft"
     puts "keep working on that!"
   end    
