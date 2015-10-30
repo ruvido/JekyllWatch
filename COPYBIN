@@ -1,0 +1,6 @@
+
+
+cp JekyllWatch.rb jekyllwatch ; 
+chmod 755 jekyllwatch ; 
+mv jekyllwatch ~/Dropbox/bin
+

@@ -1,18 +1,25 @@
 #!/usr/bin/env ruby
 
+# ===================
+# NOTES
+# ===================
+# - Files in the published folder are "frozen" and not copied to the blog anymore
+
 require 'fileutils'
+require 'git'
 
 # -----------------------------------
 # CLASS DEFINITION
 # -----------------------------------
 class Draft
-  attr_accessor :filename, :basename, :title, :author, :date, :slug, :header, 
+  attr_accessor :filename, :basename, :title, :author, :date, :slug, :header, :image,
                 :jkname, :preview, :preview_field, :publish, :publish_field,
                 :config
-  def initialize(filename,configdata)
+  def initialize(filename,blog)
     @filename = filename
     @basename = File.basename(filename)
     @header   = false
+    @image    = false
     @title    = ''
     @author   = ''
     @date     = ''
@@ -23,7 +30,7 @@ class Draft
     @publish_field  = ''
     @jkname   = 'Untitled.md'
     @status_v = 'draft'
-    @config   = configdata
+    @config   = blog
 
     # ---- Ingest entire file  ----------
     text = File.read(filename)
@@ -64,13 +71,19 @@ class Draft
         if k =~ /author/
           @author=v.strip
         end
+        if k == "image"
+          @image=v.strip
+        end
       end
     end
   end
   # --------------------------------
   def status
     if @publish_field==true and @date!="" and @slug!="" and @title!=""
-      status_v = 'publish'
+      status_v = 'publish' 
+      if image and !File.file?("#{File.dirname(filename)}/#{image}")
+        status_v = 'preview' 
+      end
       @jkname = date + "-" + slug + ".md"
     elsif preview_field == true
       status_v = 'preview'
@@ -89,9 +102,13 @@ class Draft
     if @title == ''
       puts "ERR: title is missing"      
     end
-    if @publish_field == ''
-      puts "ERR: publish field is missing"
+    if @image and !File.file?("#{File.dirname(filename)}/#{image}")
+      puts "ERR: image is missing"      
     end
+    if @publish_field == ''
+      puts "WAR: publish field is missing"
+    end
+
     # else
     #   puts "OK: article ready"
     # end  
@@ -99,8 +116,24 @@ class Draft
   # --------------------------------
   def to_previews
 
-    new_filename = config.blog_previews + File.basename(filename)
+    new_filename = "#{config.blog_previews}/#{basename}"
     FileUtils.cp( filename, new_filename )
+
+    new_filename = "#{config.dump_previews}/#{basename}"
+    FileUtils.mv( filename, new_filename ) unless filename == new_filename
+    # FileUtils.mv( filename, "#{config.dump_trash}/#{basename}__#{time.usec}")
+
+    if image
+
+      old_image = "#{File.dirname(filename)}/#{image}"
+      new_image = "#{config.dump_previews}/#{image}"
+
+      if File.file?(old_image) and old_image != new_image
+        FileUtils.mv( old_image, new_image ) 
+      end
+
+    end 
+
 
     return new_filename
   end
@@ -109,24 +142,44 @@ class Draft
     # post_dir = $blog_dir + "/_posts/"
     # prev_dir = $blog_dir + "/previews/"
 
-    new_filename = config.blog_posts + jkname
-    FileUtils.cp( filename, new_filename )
-    puts "file copied to posts"
+    # new_filename = "#{config.blog_posts}/#{jkname}"
+    # new_filename = config.blog_posts + jkname
+    FileUtils.cp( filename, "#{config.blog_posts}/#{jkname}" )
     
-    old_preview = config.blog_previews + File.basename(filename)
+    # old_preview = config.blog_previews + File.basename(filename)
+    old_preview = "#{config.blog_previews}/#{basename}"
     if File.file?(old_preview)
       FileUtils.rm( old_preview )
-      puts "preview is deleted"
     end
+
+    new_filename = "#{config.dump_posts}/#{jkname}"
+    FileUtils.mv( filename, new_filename ) unless filename == new_filename
+
+    if image
+
+      old_image = "#{File.dirname(filename)}/#{image}"
+      new_image = "#{config.blog_images}/#{image}"
+      FileUtils.cp( old_image, new_image )
+      new_image = "#{config.dump_images}/#{image}"
+      FileUtils.mv( old_image, new_image ) unless old_image == new_image
+
+
+
+      # if File.file?(old_image) and old_image != new_image
+      #   FileUtils.mv( old_image, new_image ) 
+      #   puts "image mossa"
+      # end
+
+    end 
 
     return new_filename
   end 
 end
 # ======================================
-# CONFIG CLASS
+# Blog CLASS
 # ======================================
-class Dataconfig
-  attr_accessor :dump, :dump_drafts, :dump_previews, :dump_posts,
+class Blogdata
+  attr_accessor :dump, :dump_drafts, :dump_previews, :dump_posts, :dump_images,
                 :blog, :blog_previews, :blog_posts, :blog_images
 
   def initialize(configfile)
@@ -147,21 +200,23 @@ class Dataconfig
       # puts k, v
       if k =~ /dump/
         # .strip removes any extra space from the dir path
-        @dump         = "#{v.strip}/"
-        @dump_drafts  = "#{@dump}/drafts/"
-        @dump_previews= "#{@dump}/previews/"
-        @dump_posts   = "#{@dump}/published/"
+        @dump         = "#{v.strip}"
+        @dump_drafts  = "#{@dump}/drafts"
+        @dump_previews= "#{@dump}/previews"
+        @dump_posts   = "#{@dump}/published"
+        @dump_images  = "#{@dump_posts}/images" 
         FileUtils::mkdir_p @dump unless Dir.exist?(@dump)
         FileUtils::mkdir_p @dump_drafts unless Dir.exist?(@dump_drafts) 
         FileUtils::mkdir_p @dump_previews unless Dir.exist?(@dump_previews) 
-        FileUtils::mkdir_p @dump_posts unless Dir.exist?(@dump_posts) 
+        FileUtils::mkdir_p @dump_posts unless Dir.exist?(@dump_posts)
+        FileUtils::mkdir_p @dump_images unless Dir.exist?(@dump_images) 
       end
       if k =~ /blog/
         # .strip removes any extra space from the dir path
-        @blog         = "#{v.strip}/"
-        @blog_previews= "#{@blog}/previews/"
-        @blog_posts   = "#{@blog}/_posts/"
-        @blog_images  = "#{@blog}/images/posts/"
+        @blog         = "#{v.strip}"
+        @blog_previews= "#{@blog}/previews"
+        @blog_posts   = "#{@blog}/_posts"
+        @blog_images  = "#{@blog}/images/posts"
         FileUtils::mkdir_p @blog unless Dir.exist?(@blog)
         FileUtils::mkdir_p @blog_previews unless Dir.exist?(@blog_previews)
         FileUtils::mkdir_p @blog_posts unless Dir.exist?(@blog_posts)
@@ -169,25 +224,57 @@ class Dataconfig
       end
     end
   end
-end
+  def push
+    # g = Git.open( conf.blog , :log => Logger.new(STDOUT))
+    # g = Git.open( conf.blog )
+    # puts g.status
+    # g.add(:all=>true) unless g.status.untracked == {}
+    # puts g.status.changed
+    # g.commit_all('message')
+    # g.push
+    # g = Git.open( @blog )
+    # if g.status.changed != {} or g.status.untracked != {}
+    #   puts g.status.changed
+    #   puts g.status.untracked
+    # #   g.add(:all=>true)
+    #   g.commit('message')
+    # #   g.push
+    #   puts 'changes pushed'
+    # else
+    #   puts 'no changes'
+    # end
 
-class Item
-  def initialize(item_name, quantity)
-    @item_name = item_name
-    @quantity = quantity
+    # gitmessage = system ( "cd #{blog}; git add * ; git commit -a -m 'cc'>caz" )
+    Dir.chdir @blog
+    # puts `git status`
+    # msg1 = "Changes not staged for commit:"
+    `git add --all .`
+    if `git commit -a -m 'commit'` =~ /nothing to commit, working directory clean/
+      puts 'nothing to commit'
+    else
+      `git push`
+      puts 'push blog forward!'
+    end
   end
 end
 
 
 # -----------------------------------
-# READ CONFIG FILE
+# 
+# -----------------------------------
+# 
 # -----------------------------------
 
-# $dump_dir = ''
-# $blog_dir = ''
 
-# configfile = ARGV.first
-conf=Dataconfig.new (ARGV.first)
+if ARGV.empty?
+  puts """
+
+  jekyllwatch : missing argument! - configfile
+
+  """
+end
+
+myblog=Blogdata.new (ARGV.first)
 
 # exit
 
@@ -240,34 +327,51 @@ conf=Dataconfig.new (ARGV.first)
 # directories starting with a "_" character. Those are protected.
 # This can be used to store template md files.
 
-Dir["#{conf.dump}{[!_]**/*,*}.md"].each do |ii|
+# Dir["#{conf.dump}/{[!_]**/*,*}.md"].each do |ii|
 
+#   draft=Draft.new(ii,conf)
+
+#   puts draft.basename
+#   puts draft.image
+
+# end
+
+# exit
+
+[ myblog.dump_previews, myblog.dump_drafts ].each do |cdir|
+
+  Dir["#{cdir}/{[!_]**/*,*}.md"].each do |ii|
+
+    puts '--------------------------------'
+
+    draft=Draft.new(ii,myblog)
+    status = draft.status
+    puts draft.basename, draft.filename, draft.image, status
+
+    case status
+    when "publish"
+      draft.to_posts
+      puts "file published!"
+    when "preview"
+      draft.missing
+      draft.to_previews
+      # puts "file sent to previews, want the address?"
+    when "draft"
+      puts "keep working on that!"
+    end    
+
+  end
   puts '--------------------------------'
-
-  draft=Draft.new(ii,conf)
-  status = draft.status
-  puts draft.basename, status
-
-  case status
-  when "publish"
-    draft.to_posts
-    puts "file published!"
-  when "preview"
-    draft.to_previews
-    puts "file sent to previews, want the address?"
-    draft.missing
-  when "draft"
-    puts "keep working on that!"
-  end    
-
 end
-puts '--------------------------------'
+
+# sleep 1
+myblog.push
+
+
+
 
 # ===================
 # TODO
 # ===================
-
-# 1. check if image EXIST
-# 2. mv files in the dump directory according to "_preview" or "_published"
-# 3. from preview or published back to drafts if needed
-# 4. if a directory starts with "_" in the dump directory IGNORE it
+# - send email report
+# ===================

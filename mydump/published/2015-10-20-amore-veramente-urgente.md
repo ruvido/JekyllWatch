@@ -1,10 +1,10 @@
 ---
 layout: default
-title: Questo è un vero post da pubblicare
-image: un-vero-post.jpg
+title: L'amore è urgente
+image: amore-urgente.jpg
+slug: amore-veramente-urgente
 publish: ok
-date: 17-10-2015
-slug: vero-post
+date: 20-10-2015
 ---
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce ultricies quis urna quis pulvinar. Nam gravida, elit nec convallis gravida, ex arcu lobortis eros, egestas placerat mauris est egestas lorem. Aliquam sed erat accumsan, sagittis turpis ac, aliquam dui. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. In consectetur efficitur sem, eget vestibulum ante venenatis non. Maecenas vitae condimentum odio. Nulla id suscipit nulla, at faucibus nibh. Integer maximus sem ut metus fermentum pulvinar.
